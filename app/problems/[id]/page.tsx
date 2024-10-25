@@ -5,7 +5,16 @@ import { useState } from 'react';
 import Editor from '@monaco-editor/react';
 import Link from 'next/link';
 
-const problems = {
+type ProblemId = 'two-sum' | 'palindrome-number' | 'valid-parentheses';
+
+type Problem = {
+  title: string;
+  description: string;
+  initialCode: string;
+  testCases: { input: any; expected: any }[];
+};
+
+const problems: Record<ProblemId, Problem> = {
   'two-sum': {
     title: 'Two Sum',
     description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
@@ -46,7 +55,7 @@ const problems = {
 
 export default function Problem() {
   const params = useParams();
-  const problem = problems[params.id as string];
+  const problem = problems[params.id as ProblemId];
   
   const [code, setCode] = useState(problem?.initialCode || '');
   const [results, setResults] = useState<any[]>([]);
