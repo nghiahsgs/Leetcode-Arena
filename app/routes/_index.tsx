@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Editor from "@monaco-editor/react";
 import { spawn } from "child_process";
-import type { Request } from "@remix-run/node";
 
 const initialCode = `def two_sum(nums, target):
     # Write your solution here
