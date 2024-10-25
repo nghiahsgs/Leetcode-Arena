@@ -1,6 +1,12 @@
 import { useState } from "react";
-import Editor from "@monaco-editor/react";
-import { spawn } from "child_process";
+import { NextPage } from "next";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/router";
+
+const Editor = dynamic(
+  () => import("@monaco-editor/react"),
+  { ssr: false }
+);
 
 const initialCode = `def two_sum(nums, target):
     # Write your solution here
@@ -12,85 +18,27 @@ const testCases = [
   { input: [[3, 3], 6], expected: [0, 1] }
 ];
 
-export async function action({ request }: { request: Request }) {
-  const formData = await request.formData();
-  const code = formData.get("code");
-  
-  const fullCode = `
-${code}
-
-# Test cases
-test_cases = ${JSON.stringify(testCases)}
-results = []
-
-for test in test_cases:
-    try:
-        result = two_sum(*test['input'])
-        passed = sorted(result) == sorted(test['expected'])
-        results.append({
-            'passed': passed,
-            'actual': result,
-            'expected': test['expected']
-        })
-    except Exception as e:
-        results.append({
-            'passed': False,
-            'error': str(e)
-        })
-
-print(results)
-`;
-
-  return new Promise((resolve, reject) => {
-    const python = spawn('python3', ['-c', fullCode]);
-    let output = '';
-    let error = '';
-
-    python.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    python.stderr.on('data', (data) => {
-      error += data.toString();
-    });
-
-    python.on('close', (code) => {
-      if (code !== 0) {
-        resolve(json({ 
-          results: [{ 
-            passed: false, 
-            error: error || 'Execution failed' 
-          }] 
-        }));
-        return;
-      }
-      try {
-        const results = eval(output);
-        resolve(json({ results }));
-      } catch (e) {
-        resolve(json({ 
-          results: [{ 
-            passed: false, 
-            error: 'Invalid output format' 
-          }] 
-        }));
-      }
-    });
-  });
-}
-
-export default function Index() {
-  const actionData = useActionData();
+const Index: NextPage = () => {
+  const router = useRouter();
   const [code, setCode] = useState(initialCode);
   const [isRunning, setIsRunning] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setIsRunning(true);
     try {
-      await fetch(event.target.action, {
+      const response = await fetch('/api/run-code', {
         method: 'POST',
-        body: new FormData(event.target),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
       });
+      const data = await response.json();
+      setResults(data.results);
+    } catch (error) {
+      console.error('Error:', error);
     } finally {
       setIsRunning(false);
     }
@@ -116,22 +64,19 @@ export default function Index() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow-lg">
-            <Form method="post" onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit}>
               <div className="h-[600px] w-full">
                 <Editor
                   height="100%"
                   defaultLanguage="python"
                   theme="vs-dark"
                   value={code}
-                  onChange={(value) => {
-                    setCode(value || "");
-                  }}
+                  onChange={(value) => setCode(value || "")}
                   options={{
                     minimap: { enabled: false },
                     fontSize: 14,
                   }}
                 />
-                <input type="hidden" name="code" value={code} />
               </div>
               <div className="p-4 border-t">
                 <button
@@ -142,13 +87,13 @@ export default function Index() {
                   {isRunning ? 'Running...' : 'Run Code'}
                 </button>
               </div>
-            </Form>
+            </form>
           </div>
 
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-bold mb-4">Test Results</h2>
             <div className="space-y-4">
-              {actionData?.results.map((result, index) => (
+              {results.map((result, index) => (
                 <div
                   key={index}
                   className={`p-4 rounded ${
@@ -171,4 +116,6 @@ export default function Index() {
       </div>
     </div>
   );
-}
+};
+
+export default Index;
